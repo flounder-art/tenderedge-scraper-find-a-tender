@@ -4,3 +4,23 @@
     "postinstall": "playwright install chromium --with-deps"
   }
 }
+{
+  "name": "scraper-find-tender",
+  "version": "1.0.0",
+  "description": "Find a Tender scraper",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "postinstall": "playwright install chromium --with-deps"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.x.x",
+    "playwright": "^1.x.x",
+    "cheerio": "^1.x.x"
+  },
+  "devDependencies": {
+    "tsx": "^4.x.x",
+    "typescript": "^5.x.x"
+  }
+}
