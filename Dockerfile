@@ -1,28 +1,17 @@
-FROM node:20-slim
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y \
+  chromium-browser \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-# Install system deps Playwright needs
-RUN apt-get update && apt-get install -y \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libdrm2 \
-    libxkbcommon0 \
-    libgtk-3-0 \
-    libgbm1 \
-    libasound2 \
-    wget \
-    ca-certificates \
-    fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 
-# Force Playwright to install full chromium, not headless-shell
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npx playwright install chromium --with-deps
+# Install Playwright browsers
+RUN npx playwright install
 
-COPY . .
+COPY src ./src
+COPY tsconfig.json ./
 
 CMD ["npm", "start"]
