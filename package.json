@@ -1,5 +1,5 @@
 {
-  "name": "scraper-find-tender",
+  "name": "scraper-find-a-tender",
   "version": "1.0.0",
   "description": "Find a Tender scraper",
   "main": "src/index.ts",
@@ -12,7 +12,8 @@
     "@supabase/supabase-js": "^2.x.x",
     "playwright": "^1.x.x",
     "cheerio": "^1.x.x",
-    "tsx": "^4.x.x"
+    "tsx": "^4.x.x",
+    "p-limit": "^5.x.x"
   },
   "devDependencies": {
     "typescript": "^5.x.x"
