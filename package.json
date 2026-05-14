@@ -11,10 +11,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.x.x",
     "playwright": "^1.x.x",
-    "cheerio": "^1.x.x"
+    "cheerio": "^1.x.x",
+    "tsx": "^4.x.x"
   },
   "devDependencies": {
-    "tsx": "^4.x.x",
     "typescript": "^5.x.x"
   }
 }
