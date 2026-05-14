@@ -1,5 +1,6 @@
+cat > package.json << 'EOF'
 {
-  "name": "scraper-find-a-tender",
+  "name": "scraper-find-tender",
   "version": "1.0.0",
   "description": "Find a Tender scraper",
   "main": "src/index.ts",
@@ -19,3 +20,4 @@
     "typescript": "^5.x.x"
   }
 }
+EOF
