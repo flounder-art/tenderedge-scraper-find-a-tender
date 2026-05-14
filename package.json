@@ -1,10 +1,4 @@
 {
-  "scripts": {
-    "start": "tsx src/index.ts",
-    "postinstall": "playwright install chromium --with-deps"
-  }
-}
-{
   "name": "scraper-find-tender",
   "version": "1.0.0",
   "description": "Find a Tender scraper",
