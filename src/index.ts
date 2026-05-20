@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { chromium, Page } from 'playwright';
+import * as cheerio from 'cheerio';
 import { tagTender } from './cpv_registry.js';
 import pLimit from 'p-limit';
 
@@ -11,7 +11,10 @@ const supabase = createClient(
 const BASE_URL = 'https://www.find-tender.service.gov.uk';
 const LIST_URL = `${BASE_URL}/Search/Results?status=Open`;
 const CONCURRENCY = 3;
-const TIMEOUT = 30000;
+
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; TenderEdgeBot/1.0; +https://tenderedge.ai)'
+};
 
 function parseDate(dateStr: string): string | null {
   if (!dateStr) return null;
@@ -33,102 +36,109 @@ function extractCPV(text: string): string[] {
   return matches ? [...new Set(matches)] : [];
 }
 
-async function safeGoto(page: Page, url: string) {
-  for (let i = 0; i < 3; i++) {
+async function fetchHtml(url: string, retries = 3): Promise<string> {
+  for (let i = 0; i < retries; i++) {
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: TIMEOUT });
-      return;
+      const res = await fetch(url, { headers: HEADERS });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.text();
     } catch (e) {
-      if (i === 2) throw e;
-      await page.waitForTimeout(1000 * (i + 1));
+      if (i === retries - 1) throw e;
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
     }
   }
+  return '';
 }
 
 async function scrapeFindTender() {
   const start = Date.now();
   console.log('=== FT SCRAPER START ===', new Date().toISOString());
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  const listHtml = await fetchHtml(LIST_URL);
+  const $list = cheerio.load(listHtml);
+
+  const listResults: Array<{
+    title: string;
+    url: string;
+    buyer: string;
+    description: string;
+    deadline_raw: string;
+    source: string;
+    status: string;
+    scraped_at: string;
+  }> = [];
+
+  $list('.search-result').each((_i, el) => {
+    const titleEl = $list(el).find('h2 a');
+    const href = titleEl.attr('href') || '';
+    listResults.push({
+      title: titleEl.text().trim(),
+      url: href.startsWith('http') ? href : `${BASE_URL}${href}`,
+      buyer: $list(el).find('.search-result-sub-header').text().trim(),
+      description: $list(el).find('.search-result-description').text().trim(),
+      deadline_raw: $list(el).find('.search-result-deadline').text().trim(),
+      source: 'find-tender',
+      status: 'open',
+      scraped_at: new Date().toISOString()
+    });
   });
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (compatible; TenderEdgeBot/1.0; +https://tenderedge.ai)'
-  });
-  const page = await context.newPage();
-
-  await safeGoto(page, LIST_URL);
-  await page.waitForSelector('.search-result', { timeout: 15000 }).catch(() => {});
-
-  const listResults = await page.$$eval('.search-result', nodes =>
-    nodes.map(n => {
-      const titleEl = n.querySelector('h2 a') as HTMLAnchorElement;
-      const buyerEl = n.querySelector('.search-result-sub-header');
-      const descEl = n.querySelector('.search-result-description');
-      const deadlineEl = n.querySelector('.search-result-deadline');
-
-      return {
-        title: titleEl?.textContent?.trim() || '',
-        url: titleEl?.href || '',
-        buyer: buyerEl?.textContent?.trim() || '',
-        description: descEl?.textContent?.trim() || '',
-        deadline_raw: deadlineEl?.textContent?.trim() || '',
-        source: 'find-tender',
-        status: 'open',
-        scraped_at: new Date().toISOString()
-      };
-    })
-  ).catch(() => []);
 
   console.log(`FT List results: ${listResults.length}`);
   if (!listResults.length) {
-    await browser.close();
     console.log('PIPELINE STOPPED: No rows found');
     return;
   }
 
   const limit = pLimit(CONCURRENCY);
-  const detailPage = await context.newPage();
 
   const enriched = await Promise.all(
     listResults.filter(r => r.url).map(r =>
       limit(async () => {
         try {
-          await safeGoto(detailPage, r.url);
-          const detailData = await detailPage.evaluate(() => {
-            const getText = (sel: string) =>
-              document.querySelector(sel)?.textContent?.trim() || '';
-            return {
-              full_text: document.body.innerText,
-              cpv: getText('td:has-text("CPV") + td'),
-              value: getText('td:has-text("Value") + td')
-            };
+          const detailHtml = await fetchHtml(r.url);
+          const $d = cheerio.load(detailHtml);
+
+          // Extract CPV: look for a table cell labelled "CPV" and grab the next cell
+          let cpv = '';
+          $d('td').each((_i, el) => {
+            if ($d(el).text().trim().toUpperCase().includes('CPV')) {
+              cpv = $d(el).next('td').text().trim();
+              return false; // break
+            }
           });
+
+          // Extract value: look for a table cell labelled "Value" and grab the next cell
+          let value = '';
+          $d('td').each((_i, el) => {
+            if ($d(el).text().trim().toUpperCase() === 'VALUE') {
+              value = $d(el).next('td').text().trim();
+              return false; // break
+            }
+          });
+
+          const fullText = $d('body').text();
 
           return {
             ...r,
-            description: r.description || detailData.full_text.slice(0, 2000),
-            cpv_raw: detailData.cpv,
-            value_raw: detailData.value
+            description: r.description || fullText.slice(0, 2000),
+            cpv_raw: cpv,
+            value_raw: value
           };
         } catch (e: any) {
           console.log('Detail fail:', r.url, e.message);
-          return r;
+          return { ...r, cpv_raw: '', value_raw: '' };
         }
       })
     )
   );
-
-  await browser.close();
 
   const cleaned = enriched
     .filter(r => r.title && r.url)
     .map(r => ({
       ...r,
       deadline: parseDate(r.deadline_raw),
-      value: extractValue(r.value_raw),
-      cpv_codes: extractCPV(r.cpv_raw || ''),
+      value: extractValue(r.value_raw ?? ''),
+      cpv_codes: extractCPV(r.cpv_raw ?? ''),
       source: 'find-tender',
       status: 'open'
     }))
