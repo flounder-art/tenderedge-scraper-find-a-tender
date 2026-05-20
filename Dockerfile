@@ -25,4 +25,5 @@ COPY . .
 RUN npx playwright install --with-deps chromium
 
 CMD ["npm", "start"]
-EOF
+RUN npx playwright install chromium
+RUN npx playwright install-deps chromiumEOF
