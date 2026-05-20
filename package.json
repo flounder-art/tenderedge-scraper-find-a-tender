@@ -5,12 +5,10 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts",
-    "postinstall": "playwright install chromium --with-deps"
+    "start": "tsx src/index.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.x.x",
-    "playwright": "^1.x.x",
     "cheerio": "^1.x.x",
     "tsx": "^4.x.x",
     "p-limit": "^5.x.x"
