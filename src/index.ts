@@ -60,6 +60,12 @@ async function scrapeFindTender() {
 
   await safeGoto(page, LIST_URL);
   await page.waitForSelector('.search-result', { timeout: 15000 }).catch(() => {});
+  await safeGoto(page, LIST_URL);
+await page.waitForSelector('body');
+const html = await page.content();
+console.log('=== HTML DUMP ===');
+console.log(html.slice(0, 8000));
+console.log('=== END DUMP ===');
 
   const listResults = await page.$$eval('.search-result', nodes =>
     nodes.map(n => {
