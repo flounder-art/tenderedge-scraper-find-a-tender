@@ -1,6 +1,4 @@
-cat > Dockerfile << 'EOF'
 FROM node:20-slim
-
 WORKDIR /app
 
 # Install system deps that Playwright needs
@@ -19,12 +17,9 @@ RUN apt-get update && apt-get install -y \
 COPY package*.json ./
 RUN npm ci
 
-COPY . .
-
-# Install Playwright with all system deps
+# Install Playwright + deps BEFORE CMD
 RUN npx playwright install --with-deps chromium
 
+COPY . .
+
 CMD ["npm", "start"]
-RUN npx playwright install chromium
-RUN npx playwright install-deps chromium
-EOF
